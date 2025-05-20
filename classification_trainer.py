@@ -1,6 +1,8 @@
 # filename: classification_trainer.py
 
 import os
+import inspect
+import logging
 
 import hydra
 import lightning.pytorch as pl
@@ -19,6 +21,7 @@ from utils.auto_resumer import AutoResumer
 
 from utils.dali_dataloader import ClassificationDALIDataModule
 from utils.load_model import load_model
+from utils.arg_parse import parse_cfg
 
 
 class ClassificationModel(pl.LightningModule):
@@ -30,12 +33,12 @@ class ClassificationModel(pl.LightningModule):
         """
         super().__init__()
         self.cfg = cfg
-        self.backbone = load_model(cfg)
+        self.model = load_model(cfg)
         self.criterion = nn.CrossEntropyLoss()
         self.save_hyperparameters(cfg)
 
     def forward(self, x):
-        return self.backbone(x)
+        return self.model(x)
 
     def training_step(self, batch, batch_idx):
         images, labels = batch
@@ -96,16 +99,15 @@ def main(cfg: DictConfig):
     OmegaConf.set_struct(cfg, False)
     cfg = parse_cfg(cfg)
 
-    backbone = load_model(cfg)
+    # Initialize model
+    model = ClassificationModel(cfg)
     
-    # initialize backbone
+    # initialize model
     if cfg.backbone.name.startswith("resnet"):
-        # remove fc layer
-        backbone.fc = nn.Identity()
         cifar = cfg.data.dataset in ["cifar10", "cifar100"]
         if cifar:
-            backbone.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=2, bias=False)
-            backbone.maxpool = nn.Identity()
+            model.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=2, bias=False)
+            model.maxpool = nn.Identity()
 
     if cfg.pretrained_backbone:
         ckpt_path = cfg.pretrained_backbone
@@ -114,17 +116,17 @@ def main(cfg: DictConfig):
         state = torch.load(ckpt_path, map_location="cpu")["state_dict"]
         for k in list(state.keys()):
             if "encoder" in k:
-                state[k.replace("encoder", "backbone")] = state[k]
+                state[k.replace("encoder", "model")] = state[k]
                 logging.warn(
                     "You are using an older checkpoint. Use a new one as some issues might arrise."
                 )
-            if "backbone" in k:
-                state[k.replace("backbone.", "")] = state[k]
+            if "model" in k:
+                state[k.replace("model.", "")] = state[k]
             del state[k]
-        backbone.load_state_dict(state, strict=False)
+        model.load_state_dict(state, strict=False)
         logging.info(f"Loaded {ckpt_path}")
     else:
-        logging.info("No pretrained backbone provided, using random initialization.")    
+        logging.info("No pretrained model provided, using random initialization.")    
 
     ckpt_path, wandb_run_id = None, None
     if cfg.auto_resume.enabled and cfg.resume_from_checkpoint is None:
@@ -178,9 +180,6 @@ def main(cfg: DictConfig):
         data_fraction=-1.0,  # Use all data
         dali_device="gpu" if torch.cuda.is_available() else "cpu",
     )
-
-    # Initialize model
-    model = ClassificationModel(cfg)
 
     # Set up checkpointing
     checkpoint_callback = ModelCheckpoint(
