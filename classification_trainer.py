@@ -1,14 +1,22 @@
-# filename: classification_trainer.py
-
 import os
 import inspect
 import logging
-
 import hydra
-import lightning.pytorch as pl
+
+from omegaconf import DictConfig
+from torchmetrics import Accuracy
+from torch.optim.lr_scheduler import (
+    StepLR,
+    MultiStepLR,
+    CosineAnnealingLR,
+    OneCycleLR,
+)
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import lightning.pytorch as pl
+from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.callbacks import LearningRateMonitor
 from lightning.pytorch.loggers import WandbLogger
@@ -23,68 +31,133 @@ from utils.dali_dataloader import ClassificationDALIDataModule
 from utils.load_model import load_model
 from utils.arg_parse import parse_cfg
 
-
 class ClassificationModel(pl.LightningModule):
     def __init__(self, cfg: DictConfig):
-        """Initializes the classification model.
+        """
+        Initializes the classification model.
 
         Args:
             cfg (DictConfig): Configuration object containing hyperparameters.
         """
         super().__init__()
+        self.save_hyperparameters(ignore=['cfg'])
         self.cfg = cfg
         self.model = load_model(cfg)
         self.criterion = nn.CrossEntropyLoss()
-        self.save_hyperparameters(cfg)
 
-    def forward(self, x):
+        # Metrics
+        self.train_acc = Accuracy(task="multiclass", num_classes=cfg.data.num_classes)
+        self.val_acc = Accuracy(task="multiclass", num_classes=cfg.data.num_classes)
+        self.test_acc = Accuracy(task="multiclass", num_classes=cfg.data.num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
         images, labels = batch
-        outputs = self(images)
-        loss = self.criterion(outputs, labels)
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, sync_dist=True)
+        logits = self(images)
+        loss = self.criterion(logits, labels)
+        preds = torch.argmax(logits, dim=1)
+
+        # Update and log metrics
+        self.train_acc.update(preds, labels)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=False)
+        self.log('train_acc', self.train_acc, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         images, labels = batch
-        outputs = self(images)
-        loss = self.criterion(outputs, labels)
-        preds = torch.argmax(outputs, dim=1)
-        acc = (preds == labels).float().mean()
-        self.log("val_loss", loss, on_epoch=True, prog_bar=True, sync_dist=True)
-        self.log("val_acc", acc, on_epoch=True, prog_bar=True, sync_dist=True)
-        return {"val_loss": loss, "val_acc": acc}
+        logits = self(images)
+        loss = self.criterion(logits, labels)
+        preds = torch.argmax(logits, dim=1)
+
+        self.val_acc.update(preds, labels)
+        self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+        self.log('val_acc', self.val_acc, on_epoch=True, prog_bar=True)
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        images, labels = batch
+        logits = self(images)
+        loss = self.criterion(logits, labels)
+        preds = torch.argmax(logits, dim=1)
+
+        self.test_acc.update(preds, labels)
+        self.log('test_loss', loss, on_epoch=True)
+        self.log('test_acc', self.test_acc, on_epoch=True, prog_bar=True)
+        return loss
 
     def configure_optimizers(self):
-        optimizer_name = self.cfg.optimizer.name
-        lr = self.cfg.optimizer.lr
-        weight_decay = self.cfg.optimizer.weight_decay
-        momentum = self.cfg.optimizer.momentum
+        optim_cfg = self.cfg.optimizer
+        sched_cfg = self.cfg.scheduler
 
-        if optimizer_name == "sgd":
-            optimizer = optim.SGD(
-                self.parameters(),
-                lr=lr,
-                momentum=momentum,
-                weight_decay=weight_decay,
-            )
-        else:
-            raise ValueError(f"Optimizer {optimizer_name} not supported.")
+        # ------------------------
+        # Optimizer selection
+        # ------------------------
+        optim_map = {
+            'sgd': optim.SGD,
+            'adam': optim.Adam,
+            'adamw': optim.AdamW,
+        }
+        if optim_cfg.name not in optim_map:
+            raise ValueError(f"Unsupported optimizer: {optim_cfg.name}")
+        optimizer = optim_map[optim_cfg.name](
+            self.parameters(),
+            lr=optim_cfg.lr,
+            weight_decay=optim_cfg.weight_decay,
+            **({'momentum': optim_cfg.momentum} if optim_cfg.name == 'sgd' else {})
+        )
 
-        scheduler_name = self.cfg.scheduler.name
-        if scheduler_name == "step":
-            scheduler = MultiStepLR(
+        # ------------------------
+        # Scheduler selection & parameter validation
+        # ------------------------
+        name = sched_cfg.name.lower()
+        if name == 'step':
+            if not hasattr(sched_cfg, 'step_size') or not hasattr(sched_cfg, 'gamma'):
+                raise ValueError("StepLR scheduler requires 'step_size' and 'gamma'.")
+            scheduler = StepLR(optimizer, step_size=sched_cfg.step_size, gamma=sched_cfg.gamma)
+
+        elif name == 'multistep':
+            if not hasattr(sched_cfg, 'milestones') or not hasattr(sched_cfg, 'gamma'):
+                raise ValueError("MultiStepLR scheduler requires 'milestones' and 'gamma'.")
+            scheduler = MultiStepLR(optimizer, milestones=sched_cfg.milestones, gamma=sched_cfg.gamma)
+
+        elif name == 'cosine':
+            if not hasattr(sched_cfg, 't_max'):
+                raise ValueError("CosineAnnealingLR scheduler requires 't_max'.")
+            eta_min = getattr(sched_cfg, 'eta_min', 0.0)
+            scheduler = CosineAnnealingLR(optimizer, T_max=sched_cfg.t_max, eta_min=eta_min)
+
+        elif name == 'onecycle':
+            oc_cfg = getattr(sched_cfg, 'onecycle', {})
+            # Required OneCycleLR params: max_lr, epochs, steps_per_epoch
+            max_lr = getattr(oc_cfg, 'max_lr', optim_cfg.lr)
+            epochs = getattr(self.trainer, 'max_epochs', None)
+            steps = getattr(self.cfg.data, 'steps_per_epoch', None)
+            if epochs is None or steps is None:
+                raise ValueError("OneCycleLR requires 'trainer.max_epochs' and 'data.steps_per_epoch' in config.")
+            scheduler = OneCycleLR(
                 optimizer,
-                milestones=self.cfg.scheduler.lr_decay_steps,
-                gamma=self.cfg.scheduler.gamma,
+                max_lr=max_lr,
+                epochs=epochs,
+                steps_per_epoch=steps,
+                pct_start=getattr(oc_cfg, 'pct_start', 0.3),
+                anneal_strategy=getattr(oc_cfg, 'anneal_strategy', 'cos'),
+                div_factor=getattr(oc_cfg, 'div_factor', 25.0),
+                final_div_factor=getattr(oc_cfg, 'final_div_factor', 1e4),
             )
         else:
-            raise ValueError(f"Scheduler {scheduler_name} not supported.")
+            raise ValueError(f"Unsupported scheduler: {sched_cfg.name}")
 
-        return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
-
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': {
+                'scheduler': scheduler,
+                'interval': sched_cfg.interval,  # 'step' or 'epoch'
+                'frequency': 1,
+                'monitor': 'val_loss',
+            }
+        }
 
 @hydra.main(config_path="./configs/", config_name="resnet50")
 def main(cfg: DictConfig):
@@ -147,14 +220,6 @@ def main(cfg: DictConfig):
 
     callbacks = []
 
-    ckpt = Checkpointer(
-        cfg,
-        logdir=os.path.join(cfg.checkpoint.dir, "linear"),
-        frequency=cfg.checkpoint.frequency,
-        keep_prev=cfg.checkpoint.keep_prev,
-    )
-    callbacks.append(ckpt)
-
     wandb_logger = WandbLogger(
         name=cfg.name,
         project=cfg.wandb.project,
@@ -190,16 +255,17 @@ def main(cfg: DictConfig):
         mode="min",
         every_n_epochs=cfg.checkpoint.frequency,
     )
+    callbacks.append(checkpoint_callback)
 
     # Initialize trainer
     trainer = pl.Trainer(
         max_epochs=cfg.max_epochs,
         devices=cfg.devices,
         accelerator=cfg.accelerator,
-        strategy=DDPStrategy(find_unused_parameters=False) if cfg.strategy == "ddp" else cfg.strategy,
+        strategy=DDPStrategy(find_unused_parameters=False) if cfg.strategy == "ddp" else "auto",
         precision=cfg.precision,
         sync_batchnorm=cfg.sync_batchnorm,
-        callbacks=[checkpoint_callback],
+        callbacks=callbacks,
         logger=wandb_logger,
         enable_checkpointing=cfg.checkpoint.enabled
     )

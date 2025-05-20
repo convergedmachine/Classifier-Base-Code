@@ -1,0 +1,16 @@
+[34m[1mwandb[0m: logging graph, to disable use `wandb.watch(log_graph=False)`
+Error executing job with overrides: []
+Traceback (most recent call last):
+  File "/workspace/Classifier-Base-Code/classification_trainer.py", line 267, in main
+    trainer = pl.Trainer(
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/utilities/argparse.py", line 70, in insert_env_defaults
+    return fn(self, **kwargs)
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/trainer.py", line 404, in __init__
+    self._accelerator_connector = _AcceleratorConnector(
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/connectors/accelerator_connector.py", line 131, in __init__
+    self._check_config_and_set_final_flags(
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/connectors/accelerator_connector.py", line 194, in _check_config_and_set_final_flags
+    raise ValueError(
+ValueError: You selected an invalid strategy name: `strategy=<lightning.pytorch.strategies.ddp.DDPStrategy object at 0x75f97971d630>`. It must be either a string or an instance of `pytorch_lightning.strategies.Strategy`. Example choices: auto, ddp, ddp_spawn, deepspeed, ... Find a complete list of options in our documentation at https://lightning.ai
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.

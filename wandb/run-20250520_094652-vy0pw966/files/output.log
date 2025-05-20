@@ -1,0 +1,28 @@
+[34m[1mwandb[0m: logging graph, to disable use `wandb.watch(log_graph=False)`
+Error executing job with overrides: []
+Traceback (most recent call last):
+  File "/workspace/Classifier-Base-Code/classification_trainer.py", line 274, in main
+    trainer.fit(model, datamodule=data_module)
+  File "/usr/local/lib/python3.10/dist-packages/lightning/pytorch/trainer/trainer.py", line 561, in fit
+    call._call_and_handle_interrupt(
+  File "/usr/local/lib/python3.10/dist-packages/lightning/pytorch/trainer/call.py", line 48, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+  File "/usr/local/lib/python3.10/dist-packages/lightning/pytorch/trainer/trainer.py", line 599, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path)
+  File "/usr/local/lib/python3.10/dist-packages/lightning/pytorch/trainer/trainer.py", line 988, in _run
+    self.strategy.setup(self)
+  File "/usr/local/lib/python3.10/dist-packages/lightning/pytorch/strategies/strategy.py", line 159, in setup
+    self.setup_optimizers(trainer)
+  File "/usr/local/lib/python3.10/dist-packages/lightning/pytorch/strategies/strategy.py", line 139, in setup_optimizers
+    self.optimizers, self.lr_scheduler_configs = _init_optimizers_and_lr_schedulers(self.lightning_module)
+  File "/usr/local/lib/python3.10/dist-packages/lightning/pytorch/core/optimizer.py", line 180, in _init_optimizers_and_lr_schedulers
+    optim_conf = call._call_lightning_module_hook(model.trainer, "configure_optimizers", pl_module=model)
+  File "/usr/local/lib/python3.10/dist-packages/lightning/pytorch/trainer/call.py", line 176, in _call_lightning_module_hook
+    output = fn(*args, **kwargs)
+  File "/workspace/Classifier-Base-Code/classification_trainer.py", line 156, in configure_optimizers
+    'interval': sched_cfg.interval,  # 'step' or 'epoch'
+omegaconf.errors.ConfigAttributeError: Missing key interval
+    full_key: scheduler.interval
+    object_type=dict
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.

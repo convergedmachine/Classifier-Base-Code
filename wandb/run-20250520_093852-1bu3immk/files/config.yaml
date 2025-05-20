@@ -1,0 +1,128 @@
+_wandb:
+    value:
+        cli_version: 0.19.11
+        m:
+            - "1": trainer/global_step
+              "6":
+                - 3
+              "7": []
+        python_version: 3.10.12
+        t:
+            "1":
+                - 1
+                - 9
+                - 41
+                - 49
+                - 50
+                - 55
+                - 63
+                - 103
+                - 106
+            "2":
+                - 1
+                - 9
+                - 41
+                - 49
+                - 50
+                - 55
+                - 63
+                - 103
+                - 106
+            "3":
+                - 1
+                - 7
+                - 13
+                - 23
+                - 55
+                - 66
+            "4": 3.10.12
+            "5": 0.19.11
+            "8":
+                - 5
+            "12": 0.19.11
+            "13": linux-x86_64
+accelerator:
+    value: gpu
+auto_augment:
+    value: false
+auto_resume:
+    value:
+        enabled: true
+        max_hours: 36
+backbone:
+    value:
+        name: resnet50
+checkpoint:
+    value:
+        dir: trained_models
+        enabled: true
+        frequency: 1
+        keep_prev: false
+cutmix:
+    value: 0
+data:
+    value:
+        augmentations:
+            crop_size: 224
+            mean:
+                - 0.485
+                - 0.456
+                - 0.406
+            std:
+                - 0.229
+                - 0.224
+                - 0.225
+        dataset: radimagenet
+        format: dali
+        fraction: -1
+        num_classes: 124
+        num_workers: 4
+        train_path: /workspace/refined_radiology_ai_1L/train
+        val_path: /workspace/refined_radiology_ai_1L/val
+devices:
+    value:
+        - 0
+label_smoothing:
+    value: 0
+max_epochs:
+    value: 90
+mixup:
+    value: 0
+name:
+    value: resnet50
+num_nodes:
+    value: 1
+optimizer:
+    value:
+        batch_size: 128
+        kwargs:
+            momentum: 0.9
+        lr: 0.05
+        momentum: 0.9
+        name: sgd
+        weight_decay: 0.0001
+precision:
+    value: 16-mixed
+pretrain_method:
+    value: null
+pretrained_backbone:
+    value: false
+resume_from_checkpoint:
+    value: null
+scheduler:
+    value:
+        gamma: 0.1
+        name: step
+        step_size: 30
+seed:
+    value: 5
+strategy:
+    value: ddp
+sync_batchnorm:
+    value: true
+wandb:
+    value:
+        enabled: true
+        entity: null
+        offline: false
+        project: base-classifier

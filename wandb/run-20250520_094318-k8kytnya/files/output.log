@@ -1,0 +1,22 @@
+[34m[1mwandb[0m: logging graph, to disable use `wandb.watch(log_graph=False)`
+Error executing job with overrides: []
+Traceback (most recent call last):
+  File "/workspace/Classifier-Base-Code/classification_trainer.py", line 266, in main
+    trainer = pl.Trainer(
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/utilities/argparse.py", line 70, in insert_env_defaults
+    return fn(self, **kwargs)
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/trainer.py", line 434, in __init__
+    self._callback_connector.on_trainer_init(
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/connectors/callback_connector.py", line 82, in on_trainer_init
+    _validate_callbacks_list(self.trainer.callbacks)
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/connectors/callback_connector.py", line 247, in _validate_callbacks_list
+    stateful_callbacks = [cb for cb in callbacks if is_overridden("state_dict", instance=cb)]
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/trainer/connectors/callback_connector.py", line 247, in <listcomp>
+    stateful_callbacks = [cb for cb in callbacks if is_overridden("state_dict", instance=cb)]
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/utilities/model_helpers.py", line 41, in is_overridden
+    _check_mixed_imports(instance)
+  File "/usr/local/lib/python3.10/dist-packages/pytorch_lightning/utilities/model_helpers.py", line 96, in _check_mixed_imports
+    raise TypeError(
+TypeError: You passed a `lightning.pytorch` object (ModelCheckpoint) to a `pytorch_lightning` Trainer. Please switch to a single import style.
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.

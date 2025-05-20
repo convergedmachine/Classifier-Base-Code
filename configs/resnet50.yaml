@@ -24,12 +24,12 @@ optimizer:
   name: "sgd"
   batch_size: 128
   lr: 0.1
-  
   momentum: 0.9
   weight_decay: 1e-4
 scheduler:
   name: "step"
-  lr_decay_steps: [30, 60]
+  interval: "epoch"
+  step_size: 30
   gamma: 0.1
 checkpoint:
   enabled: True
@@ -43,5 +43,5 @@ max_epochs: 90
 devices: [0]
 sync_batchnorm: True
 accelerator: "gpu"
-strategy: "ddp"
+strategy: "auto"
 precision: 16-mixed
