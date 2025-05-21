@@ -10,10 +10,10 @@ hydra:
   run:
     dir: .
 
-name: "resnet50ml"
+name: "resnet50_fc_ml"
 pretrained_backbone: False
 backbone:
-  name: "resnet50ml"
+  name: "resnet50_fc_ml"
 data:
   dataset: radimagenet
   train_path: "/workspace/refined_radiology_ai_1L/train"

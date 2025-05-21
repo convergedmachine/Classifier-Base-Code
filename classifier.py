@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import timm
 from utils.dali_dataloader import ImageNetDALIDataModule
-from utils.resnet import resnet50, resnet50ml
+from utils.resnet import resnet50, resnet50_fc, resnet50_fc_ml
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Pass config name for Hydra")
@@ -23,8 +23,10 @@ def get_model(cfg: DictConfig, num_classes: int) -> pl.LightningModule:
             self.save_hyperparameters(cfg)
             if cfg.backbone.name == "resnet50":
                 self.classifier = resnet50(num_classes)
-            if cfg.backbone.name == "resnet50ml":
-                self.classifier = resnet50ml(num_classes)
+            elif cfg.backbone.name == "resnet50_fc":
+                self.classifier = resnet50_fc_ml(num_classes)
+            elif cfg.backbone.name == "resnet50_fc_ml":
+                self.classifier = resnet50_fc_ml(num_classes)
             self.criterion = nn.CrossEntropyLoss()
 
         def forward(self, x):

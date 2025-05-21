@@ -47,7 +47,7 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, mixstyle_layers=[], mixstyle_p=0.5, mixstyle_alpha=0.3, num_classes=1000):
+    def __init__(self, block, layers, fc_dims = [], mixstyle_layers=[], mixstyle_p=0.5, mixstyle_alpha=0.3, num_classes=1000):
         super(ResNet, self).__init__()
         self.inplanes = 64
         self.mixstyle_layers = mixstyle_layers
@@ -64,8 +64,14 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
-
+        self.fc_dims = fc_dims
+        self.feature_dim = 512 * block.expansion
+        if fc_dims:
+            self.fc = self._construct_fc_layer(
+                fc_dims, 512 * block.expansion
+            )
+        self.classifier = nn.Linear(self.feature_dim, num_classes)    
+        
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -89,6 +95,35 @@ class ResNet(nn.Module):
             layers.append(block(self.inplanes, planes))
 
         return nn.Sequential(*layers)
+
+    def _construct_fc_layer(self, fc_dims, input_dim):
+        """Constructs fully connected layer
+
+        Args:
+            fc_dims (list or tuple): dimensions of fc layers, if None, no fc layers are constructed
+            input_dim (int): input dimension
+            dropout_p (float): dropout probability, if None, dropout is unused
+        """
+        if fc_dims is None:
+            self.feature_dim = input_dim
+            return None
+
+        assert isinstance(
+            fc_dims, (list, tuple)
+        ), 'fc_dims must be either list or tuple, but got {}'.format(
+            type(fc_dims)
+        )
+
+        layers = []
+        for dim in fc_dims:
+            layers.append(nn.Linear(input_dim, dim))
+            layers.append(nn.BatchNorm1d(dim))
+            layers.append(nn.ReLU(inplace=True))
+            input_dim = dim
+
+        self.feature_dim = fc_dims[-1]
+
+        return nn.Sequential(*layers)        
 
     def forward(self, x):
         x = self.conv1(x)
@@ -114,15 +149,20 @@ class ResNet(nn.Module):
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
-        x = self.fc(x)
+        if self.fc_dims:
+            x = self.fc(x)
+        x = self.classifier(x)
 
         return x
 
 def resnet50(num_classes):
     return ResNet(Bottleneck, [3, 4, 6, 3], num_classes=num_classes)
 
-def resnet50ml(num_classes):
-    return ResNet(Bottleneck, [3, 4, 6, 3], mixstyle_layers=['layer1', 'layer2'], num_classes=num_classes)
+def resnet50_fc(num_classes):
+    return ResNet(Bottleneck, [3, 4, 6, 3], fc_dims = [512], num_classes=num_classes)
+
+def resnet50_fc_ml(num_classes):
+    return ResNet(Bottleneck, [3, 4, 6, 3], fc_dims = [512], mixstyle_layers=['layer1', 'layer2', 'layer3'], num_classes=num_classes)
 
 # Example usage:
 # model = resnet50()
