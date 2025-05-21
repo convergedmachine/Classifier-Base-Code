@@ -19,10 +19,11 @@ data:
   train_path: "/workspace/refined_radiology_ai_1L/train"
   val_path: "/workspace/refined_radiology_ai_1L/val"
   format: "dali"
+  data_fraction: 0.1
   num_workers: 4
 optimizer:
   name: "sgd"
-  batch_size: 128
+  batch_size: 512
   lr: 0.1
   momentum: 0.9
   weight_decay: 1e-4

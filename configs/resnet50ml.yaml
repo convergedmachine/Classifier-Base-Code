@@ -10,10 +10,10 @@ hydra:
   run:
     dir: .
 
-name: "resnet50"
+name: "resnet50ml"
 pretrained_backbone: False
 backbone:
-  name: "resnet50"
+  name: "resnet50ml"
 data:
   dataset: radimagenet
   train_path: "/workspace/refined_radiology_ai_1L/train"
@@ -23,7 +23,7 @@ data:
   num_workers: 4
 optimizer:
   name: "sgd"
-  batch_size: 512
+  batch_size: 256
   lr: 0.1
   momentum: 0.9
   weight_decay: 1e-4
